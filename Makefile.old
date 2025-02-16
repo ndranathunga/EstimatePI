@@ -1,0 +1,46 @@
+CXX       = g++
+CXXFLAGS  = -O3 -fopenmp -std=c++17 -Iinclude -DFMT_HEADER_ONLY -lpthread
+NVCC      = nvcc
+NVCCFLAGS = -O3 --std=c++17 -Iinclude
+
+TARGET    = estimate_pi
+
+SRC_CPP   = $(wildcard src/*.cpp src/mc/*.cpp)
+SRC_CU    = $(wildcard src/cuda/*.cu)
+
+OBJ_CPP   = $(patsubst src/%.cpp, build/%.o, $(SRC_CPP))
+OBJ_CU    = $(patsubst src/%.cu, build/%.o, $(SRC_CU))
+OBJ       = $(OBJ_CPP) $(OBJ_CU)
+
+BIN_DIR      = bin
+BUILD_DIR    = build
+RESULTS_DIR  = results
+
+# List any subdirectories that will receive object files.
+SUBDIRS      = $(BUILD_DIR)/cuda $(BUILD_DIR)/mc
+DIRS         = $(BUILD_DIR) $(BIN_DIR) $(RESULTS_DIR) $(SUBDIRS)
+
+.PHONY: all clean run dirs
+
+all: dirs $(BIN_DIR)/$(TARGET)
+
+# Create all necessary directories at once.
+dirs:
+	mkdir -p $(DIRS)
+
+# Pattern rule for compiling C++ source files.
+build/%.o: src/%.cpp | dirs
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Pattern rule for compiling CUDA source files.
+build/%.o: src/%.cu | dirs
+	$(NVCC) $(NVCCFLAGS) -c $< -o $@
+
+$(BIN_DIR)/$(TARGET): $(OBJ) | dirs
+	$(CXX) $(CXXFLAGS) -o $@ $^ -L/usr/local/cuda/lib64 -lcudart
+
+clean:
+	rm -rf $(DIRS) $(BIN_DIR)
+
+run: $(BIN_DIR)/$(TARGET)
+	./$(BIN_DIR)/$(TARGET)

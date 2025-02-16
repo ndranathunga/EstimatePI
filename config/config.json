@@ -1,0 +1,23 @@
+{
+  "groups": [
+    {
+      "name": "OpenMP",
+      "global": {
+        "backend": "OpenMP",
+        "threadCount": 12,
+        "precision": 5,
+        "rng": "MT19937",
+        // "rng": "MINSTD_RAND",
+        "dist": "UniformReal"
+        // "dist": "Normal"
+      },
+      "experiments": [
+        {
+          "experimentName": "Exp Y",
+          //   "threadCount": 6,
+          "precision": 3
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# .clang-format
+---
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+ColumnLimit: 100 # Avoid overly long lines
+
+# Do not allow short functions to be formatted on a single line
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Attach all opening braces to the preceding line
+BreakBeforeBraces: Attach
+
+AlignTrailingComments: true
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+SpacesBeforeTrailingComments: 2
+
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# For function calls, disable bin packing so that each argument goes on its own line.
+BinPackArguments: false
+# Encourage a break before the first argument.
+PenaltyBreakBeforeFirstCallParameter: 1

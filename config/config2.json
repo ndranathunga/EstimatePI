@@ -1,0 +1,70 @@
+{
+  "groups": [
+    {
+      "name": "CUDA",
+      "global": {
+        "backend": "CUDA",
+        "threadCount": 2048,
+        "precision": 5,
+        "rng": "MT19937",
+        "dist": "UniformReal"
+      },
+      "experiments": [
+        {
+          "experimentName": "Exp 1",
+          "totalSamplesFactor": 1.0,
+          "chunkSizeFactor": 1.0
+        },
+        {
+          "experimentName": "Exp 2",
+          "threadCount": 1024,
+          "precision": 3,
+          "totalSamplesFactor": 1.2,
+          "chunkSizeFactor": 0.8
+        }
+      ]
+    },
+    {
+      "name": "OpenMP",
+      "global": {
+        "backend": "OpenMP",
+        "threadCount": 12,
+        "precision": 5,
+        "rng": "MT19937",
+        "dist": "UniformReal"
+      },
+      "experiments": [
+        {
+          "experimentName": "Exp A",
+          "precision": 5
+        },
+        {
+          "experimentName": "Exp B",
+          "threadCount": 6,
+          "precision": 3
+        }
+      ]
+    },
+    {
+      "name": "Pthreads",
+      "global": {
+        "backend": "Pthreads",
+        "threadCount": 12,
+        "precision": 5,
+        "rng": "MT19937",
+        "dist": "UniformReal"
+      },
+      "experiments": [
+        {
+          "experimentName": "Exp X",
+          "precision": 5
+        },
+        {
+          "experimentName": "Exp Y",
+          "threadCount": 6,
+          "precision": 3
+        }
+      ]
+    }
+  ]
+}
