@@ -5,20 +5,23 @@
 #include <vector>
 
 #include "mc/MCPiCalculator.h"
-#include "random/Random.hpp"
+#include "random/RandomBuilder.hpp"
 
 struct PthreadTaskData {
-    long long    chunkSize;
-    long long    insideCount;
-    unsigned int seed;
+    RNGType            rngType;
+    DistType           distType;
+    unsigned long long chunkSize;
+    unsigned long long chunkCount;
+    unsigned long long insideCount;
+    unsigned int       seed;
 };
 
 void* pthreadTask(void* arg);
 
 class PthreadMCPiCalculator : public IMCPiCalculator {
    public:
-    double estimatePi(long long totalSamples, int threadCount, long long chunkSize, RNGType rngType,
-                      DistType distType) override;
+    long double estimatePi(unsigned long long totalSamples, int threadCount,
+                      unsigned long long chunkSize, RNGType rngType, DistType distType) override;
 };
 
 IMCPiCalculator* createPthreadCalculator();

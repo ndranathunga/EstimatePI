@@ -28,7 +28,7 @@
       "name": "OpenMP",
       "global": {
         "backend": "OpenMP",
-        "threadCount": 12,
+        "threadCount": 8,
         "precision": 5,
         "rng": "MT19937",
         "dist": "UniformReal"
@@ -49,7 +49,7 @@
       "name": "Pthreads",
       "global": {
         "backend": "Pthreads",
-        "threadCount": 12,
+        "threadCount": 8,
         "precision": 5,
         "rng": "MT19937",
         "dist": "UniformReal"

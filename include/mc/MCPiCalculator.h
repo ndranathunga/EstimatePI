@@ -6,7 +6,7 @@ class IMCPiCalculator {
    public:
     virtual ~IMCPiCalculator() {
     }
-    virtual double estimatePi(long long totalSamples, int threadCount, long long chunkSize,
-                              RNGType  rngType  = RNGType::MT19937,
+    virtual long double estimatePi(unsigned long long totalSamples, int threadCount,
+                              unsigned long long chunkSize, RNGType rngType = RNGType::MT19937,
                               DistType distType = DistType::UniformReal) = 0;
 };

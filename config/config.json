@@ -1,21 +1,50 @@
 {
   "groups": [
+    // {
+    //   "name": "Pthreads",
+    //   "global": {
+    //     "backend": "Pthreads",
+    //     "threadCount": 12,
+    //     "precision": 5,
+    //     "rng": "MT19937",
+    //     // "rng": "MINSTD_RAND",
+    //     "dist": "UniformReal"
+    //     // "dist": "Normal"
+    //   },
+    //   "experiments": [
+    //     {
+    //       "experimentName": "Exp Y",
+    //       //   "threadCount": 6,
+    //       "precision": 3
+    //     }
+    //   ]
+    // },
     {
-      "name": "OpenMP",
+      "name": "CUDA",
       "global": {
-        "backend": "OpenMP",
-        "threadCount": 12,
-        "precision": 5,
+        "backend": "CUDA",
+        "threadCount": 40000,
+        "precision": 6,
         "rng": "MT19937",
-        // "rng": "MINSTD_RAND",
         "dist": "UniformReal"
-        // "dist": "Normal"
       },
       "experiments": [
         {
-          "experimentName": "Exp Y",
-          //   "threadCount": 6,
-          "precision": 3
+          "experimentName": "Exp 1"
+          // "totalSamplesFactor": 1.0,
+          // "chunkSizeFactor": 1.0
+        },
+        {
+          "experimentName": "Exp 2",
+          "threadCount": 1024,
+          "precision": 3,
+          "totalSamplesFactor": 1.2,
+          "chunkSizeFactor": 0.8
+        },
+        {
+          "experimentName": "Exp 3",
+          "precision": 4,
+          "threadCount": ""
         }
       ]
     }

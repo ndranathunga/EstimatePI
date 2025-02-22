@@ -2,40 +2,55 @@
 
 void* pthreadTask(void* arg) {
     PthreadTaskData* data = static_cast<PthreadTaskData*>(arg);
-    data->insideCount     = 0;
-    Random<RNGType::MT19937, DistType::UniformReal> random(data->seed, -1.0, 1.0);
-    for (long long i = 0; i < data->chunkSize; ++i) {
-        double x = random.next();
-        double y = random.next();
-        if (x * x + y * y <= 1.0) {
-            data->insideCount++;
+
+    unsigned long long insideCount = 0;
+    unsigned long long chunkCount  = data->chunkCount;
+    unsigned long long chunkSize   = data->chunkSize;
+
+    std::random_device rd;
+    IRandom*           random =
+        RandomBuilder::build(data->rngType, data->distType, rd() + data->seed, -1.0, 1.0);
+
+    for (unsigned long long chunk = 0; chunk < chunkCount; ++chunk) {
+        for (unsigned long long i = 0; i < chunkSize; ++i) {
+            double x = random->next();
+            double y = random->next();
+            if (x * x + y * y <= 1.0) {
+                insideCount++;
+            }
         }
     }
+    data->insideCount = insideCount;
+
     return nullptr;
 }
 
-double PthreadMCPiCalculator::estimatePi(long long totalSamples, int threadCount,
-                                         long long chunkSize, RNGType rngType = RNGType::MT19937,
-                                         DistType distType = DistType::UniformReal) {
-    // FIXME: ChatGPT generated code
-    int                          numChunks        = totalSamples / chunkSize;
-    long long                    totalInsideCount = 0;
+long double PthreadMCPiCalculator::estimatePi(unsigned long long totalSamples, int threadCount,
+                                              unsigned long long chunkSize, RNGType rngType,
+                                              DistType distType) {
+    int                          totalChunks      = totalSamples / chunkSize;
+    unsigned long long           totalInsideCount = 0;
     std::vector<pthread_t>       threads(threadCount);
     std::vector<PthreadTaskData> taskData(threadCount);
     int                          chunkIndex = 0;
-    while (chunkIndex < numChunks) {
-        int activeThreads = std::min(threadCount, numChunks - chunkIndex);
-        for (int i = 0; i < activeThreads; ++i) {
-            taskData[i].chunkSize = chunkSize;
-            taskData[i].seed      = static_cast<unsigned int>(chunkIndex * 100 + i + 42);
-            pthread_create(&threads[i], nullptr, pthreadTask, &taskData[i]);
-            chunkIndex++;
-        }
-        for (int i = 0; i < activeThreads; ++i) {
-            pthread_join(threads[i], nullptr);
-            totalInsideCount += taskData[i].insideCount;
-        }
+
+    int chunksPerThread = totalChunks / threadCount;
+    int remainder       = totalChunks % threadCount;
+
+    for (int i = 0; i < threadCount; ++i) {
+        taskData[i].rngType    = rngType;
+        taskData[i].distType   = distType;
+        taskData[i].chunkSize  = chunkSize;
+        taskData[i].seed       = static_cast<unsigned int>(i + 42);
+        taskData[i].chunkCount = chunksPerThread + (i < remainder ? 1 : 0);
+        pthread_create(&threads[i], nullptr, pthreadTask, &taskData[i]);
     }
+
+    for (int i = 0; i < threadCount; ++i) {
+        pthread_join(threads[i], nullptr);
+        totalInsideCount += taskData[i].insideCount;
+    }
+
     return 4.0 * totalInsideCount / totalSamples;
 }
 

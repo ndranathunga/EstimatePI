@@ -2,3 +2,8 @@ build/
 bin/
 .venv/
 results/
+config/
+
+report/*
+!report/*.tex
+!report/*.pdf

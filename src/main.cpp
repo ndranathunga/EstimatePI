@@ -13,8 +13,8 @@
 using namespace std;
 using namespace std::chrono;
 
-long long calculateSampleSize(int decimalPrecision) {
-    return 4 * static_cast<long long>(pow(10, decimalPrecision * 2));
+unsigned long long calculateSampleSize(int decimalPrecision) {
+    return 4 * static_cast<unsigned long long>(pow(10, decimalPrecision * 2));
 }
 
 string getResultFilename() {
@@ -72,10 +72,10 @@ int main(int argc, char* argv[]) {
             RNGType  rngType  = group.global.rngType;
             DistType distType = group.global.distType;
 
-            long long totalSamples = calculateSampleSize(precision);
-            totalSamples           = static_cast<long long>(totalSamples * exp.totalSamplesFactor);
-            long long chunkSize    = (totalSamples / threadCount);
-            chunkSize              = static_cast<long long>(chunkSize * exp.chunkSizeFactor);
+            unsigned long long totalSamples = calculateSampleSize(precision);
+            totalSamples = static_cast<unsigned long long>(totalSamples * exp.totalSamplesFactor);
+            unsigned long long chunkSize = (totalSamples / threadCount);
+            chunkSize = static_cast<unsigned long long>(chunkSize * exp.chunkSizeFactor);
 
             logger->info("Running experiment: {} (Group: {})", exp.experimentName, group.groupName);
             logger->info(
@@ -91,8 +91,8 @@ int main(int argc, char* argv[]) {
 
             IMCPiCalculator* calculator = createCalculator(backend);
 
-            auto   startTime = high_resolution_clock::now();
-            double piEstimate =
+            auto        startTime = high_resolution_clock::now();
+            long double piEstimate =
                 calculator->estimatePi(totalSamples, threadCount, chunkSize, rngType, distType);
             auto endTime = high_resolution_clock::now();
 
@@ -100,8 +100,9 @@ int main(int argc, char* argv[]) {
             double timeSeconds = durationMs.count() / 1000.0;
             delete calculator;
 
-            logger->info("Experiment '{}' result: π = {:.8f}, Time = {:.3f} s",
+            logger->info("Experiment '{0}' result: π = {2:.{1}f}, Time = {3:.3f} s",
                          exp.experimentName,
+                         precision,
                          piEstimate,
                          timeSeconds);
 
@@ -110,7 +111,9 @@ int main(int argc, char* argv[]) {
                             : (backend == BackendType::Pthread) ? "Pthreads"
                                                                 : "CUDA")
                         << "," << threadCount << "," << precision << "," << totalSamples << ","
-                        << chunkSize << "," << piEstimate << "," << timeSeconds << "\n";
+                        << chunkSize << "," << std::fixed << std::setprecision(precision)
+                        << piEstimate << "," << std::fixed << std::setprecision(3) << timeSeconds
+                        << "\n";
         }
     }
 
