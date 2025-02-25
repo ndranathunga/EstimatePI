@@ -24,7 +24,7 @@ long double OpenMPMCPiCalculator::estimatePi(unsigned long long totalSamples, in
     unsigned long long totalInsideCount = 0;
 
 #pragma omp parallel for num_threads(threadCount) reduction(+ : totalInsideCount)
-    for (long long chunkIndex = 0; chunkIndex < chunkCount; ++chunkIndex) {
+    for (unsigned long long chunkIndex = 0; chunkIndex < chunkCount; ++chunkIndex) {
         totalInsideCount += simulateChunk_OpenMP(chunkSize, rngType, distType);
     }
 

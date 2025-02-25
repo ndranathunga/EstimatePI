@@ -1,50 +1,160 @@
 {
   "groups": [
     // {
-    //   "name": "Pthreads",
+    //   "name": "OpenMP-I",
+    //   "global": {
+    //     "backend": "OpenMP",
+    //     "threadCount": 12,
+    //     "precision": 5,
+    //     "sampleCount": "40B",
+    //     "rng": "MT19937",
+    //     "dist": "UniformReal"
+    //   },
+    //   "experiments": [
+    //     {
+    //       "experimentName": "precision 5"
+    //     },
+    //     {
+    //       "experimentName": "precision 10",
+    //       "precision": 10
+    //     },
+    //     {
+    //       "experimentName": "precision 15",
+    //       "precision": 15
+    //     },
+    //     {
+    //       "experimentName": "precision 20",
+    //       "precision": 20
+    //     }
+    //   ]
+    // },
+    // {
+    //   "name": "OpenMP-II",
+    //   "global": {
+    //     "backend": "OpenMP",
+    //     "threadCount": 12,
+    //     "precision": 20,
+    //     "rng": "MT19937",
+    //     "dist": "UniformReal"
+    //   },
+    //   "experiments": [
+    //     {
+    //       "experimentName": "2^24 trials",
+    //       "sampleCount": "2^24"
+    //     },
+    //     {
+    //       "experimentName": "2^26 trials",
+    //       "sampleCount": "2^26"
+    //     },
+    //     {
+    //       "experimentName": "2^28 trials",
+    //       "sampleCount": "2^28"
+    //     }
+    //   ]
+    // },
+    // {
+    //   "name": "Pthreads-I",
     //   "global": {
     //     "backend": "Pthreads",
     //     "threadCount": 12,
     //     "precision": 5,
+    //     "sampleCount": "40B",
     //     "rng": "MT19937",
-    //     // "rng": "MINSTD_RAND",
     //     "dist": "UniformReal"
-    //     // "dist": "Normal"
     //   },
     //   "experiments": [
     //     {
-    //       "experimentName": "Exp Y",
-    //       //   "threadCount": 6,
-    //       "precision": 3
+    //       "experimentName": "precision 5"
+    //     },
+    //     {
+    //       "experimentName": "precision 10",
+    //       "precision": 10
+    //     },
+    //     {
+    //       "experimentName": "precision 15",
+    //       "precision": 15
+    //     },
+    //     {
+    //       "experimentName": "precision 20",
+    //       "precision": 20
+    //     }
+    //   ]
+    // },
+    // {
+    //   "name": "Pthreads-II",
+    //   "global": {
+    //     "backend": "Pthreads",
+    //     "threadCount": 12,
+    //     "precision": 20,
+    //     "rng": "MT19937",
+    //     "dist": "UniformReal"
+    //   },
+    //   "experiments": [
+    //     {
+    //       "experimentName": "2^24 trials",
+    //       "sampleCount": "2^24"
+    //     },
+    //     {
+    //       "experimentName": "2^26 trials",
+    //       "sampleCount": "2^26"
+    //     },
+    //     {
+    //       "experimentName": "2^28 trials",
+    //       "sampleCount": "2^28"
     //     }
     //   ]
     // },
     {
-      "name": "CUDA",
+      "name": "CUDA-I",
+      "method": "MC",
       "global": {
         "backend": "CUDA",
         "threadCount": 40000,
-        "precision": 6,
+        "precision": 5,
+        "sampleCount": "40B",
         "rng": "MT19937",
         "dist": "UniformReal"
       },
       "experiments": [
         {
-          "experimentName": "Exp 1"
-          // "totalSamplesFactor": 1.0,
-          // "chunkSizeFactor": 1.0
+          "experimentName": "precision 5"
         },
         {
-          "experimentName": "Exp 2",
-          "threadCount": 1024,
-          "precision": 3,
-          "totalSamplesFactor": 1.2,
-          "chunkSizeFactor": 0.8
+          "experimentName": "precision 10",
+          "precision": 10
         },
         {
-          "experimentName": "Exp 3",
-          "precision": 4,
-          "threadCount": ""
+          "experimentName": "precision 15",
+          "precision": 15
+        },
+        {
+          "experimentName": "precision 20",
+          "precision": 20
+        }
+      ]
+    },
+    {
+      "name": "CUDA-II",
+      "method": "MC",
+      "global": {
+        "backend": "CUDA",
+        "threadCount": 40000,
+        "precision": 20,
+        "rng": "MT19937",
+        "dist": "UniformReal"
+      },
+      "experiments": [
+        {
+          "experimentName": "2^24 trials",
+          "sampleCount": "2^24"
+        },
+        {
+          "experimentName": "2^26 trials",
+          "sampleCount": "2^26"
+        },
+        {
+          "experimentName": "2^28 trials",
+          "sampleCount": "2^28"
         }
       ]
     }

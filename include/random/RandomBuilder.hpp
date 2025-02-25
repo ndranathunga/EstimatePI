@@ -4,8 +4,8 @@
 
 class RandomBuilder {
    public:
-    static IRandom* build(RNGType rng, DistType dist, unsigned int seed, double param1,
-                          double param2) {
+    static IRandom* build(RNGType rng, DistType dist, unsigned int seed, long double param1,
+                          long double param2) {
         switch (rng) {
             case RNGType::MT19937:
                 switch (dist) {

@@ -7,7 +7,7 @@ set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fopenmp -DFMT_HEADER_ONLY -lpthread")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 --std=c++17")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 --std=c++17 -lineinfo") # add -lineinfo for ncu profiling
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
@@ -17,7 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/results)
 
 # Gather source files from src/ and its subdirectories
-file(GLOB SRC_CPP "src/*.cpp" "src/mc/*.cpp")
+file(GLOB SRC_CPP "src/*.cpp" "src/mc/*.cpp" "src/gl/*.cpp")
 file(GLOB SRC_CU "src/cuda/*.cu")
 
 # Create the executable using both C++ and CUDA source files

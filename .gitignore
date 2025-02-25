@@ -3,7 +3,10 @@ bin/
 .venv/
 results/
 config/
+profiling/
 
 report/*
 !report/*.tex
 !report/*.pdf
+!report/*.py
+!report/images/

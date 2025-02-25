@@ -1,39 +1,25 @@
 \documentclass[12pt]{article}
+\sloppy
 
-% Packages
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath, amssymb}
 \usepackage{graphicx}
-\usepackage{listings}    % or minted for code
+\usepackage{listings}    
 \usepackage{hyperref}
+\usepackage{float}
 
-\title{Estimating \(\pi\) Value --- Assignment Report}
-\author{Nisal Dasunpriya Ranathunga \\ 200517U}
+\usepackage{booktabs}  % if used in your tables
+\usepackage{xcolor}    % if needed for any colored text in tables
+
+\title{Estimating \(\pi\) Value --- Report}
+\author{Ranathunga N. D. \\ 200517U}
 \date{\today}
 
 \begin{document}
 
 \maketitle
 
-% \tableofcontents
-
-% \section{Introduction}
-% This report addresses the tasks outlined in the assignment on estimating
-% \(\pi\) using Monte Carlo methods and the Gregory-Leibniz series. The primary
-% objectives include:
-% \begin{itemize}
-%     \item Evaluating the value of \(\pi\) to specific decimal places using Monte Carlo
-%           simulations.
-%     \item Comparing different implementation strategies (single-threaded, multi-threaded,
-%           GPU) and analyzing their performance in terms of execution time and accuracy.
-%     \item Investigating the impact of increasing the number of trials on the estimation
-%           of \(\pi\).
-%     \item Profiling and identifying bottlenecks in the best-performing method.
-%     \item Finally, contrasting the Monte Carlo approach with the Gregory-Leibniz series
-%           for \(\pi\) estimation.
-% \end{itemize}
-% The structure of this report follows the assignment questions, presenting each decision made
-% during the experiments and discussing the resulting observations.
+\tableofcontents
 
 \section{Monte Carlo Method: Approach and Implementation}\label{sec:monte-carlo-impl}
 
@@ -41,244 +27,316 @@ The Monte Carlo method for estimating \(\pi\) relies on sampling random points
 in \([-1,1]\times[-1,1]\) and counting how many lie within the inscribed
 quarter circle:
 \[
-    \pi \approx 4 \times \frac{\text{Number of points inside the circle}}{\text{Total number of points}}.
+      \pi \approx 4 \times \frac{\text{Number of points inside the circle}}{\text{Total number of points}}.
 \]
-Below, we first discuss how we determine a practical sample size using a
-Bernoulli model, then outline our parallel implementations (pthreads, OpenMP,
-and CUDA). A single-threaded approach is excluded due to its prohibitive
-runtime for large sample sizes.
+A single-threaded approach is excluded due to its long runtime for large
+sample sizes. Instead, multi-threaded (pthreads, OpenMP) and GPU-accelerated
+(CUDA) implementations are used. The sample size is determined using a
+\textbf{binomial} model.
 
-\subsection{Determining Sample Size Using a Bernoulli Model}\label{sec:bernoulli}
+\subsection{Determining Sample Size Using a Binomial Model}\label{sec:bernoulli}
 \begin{itemize}
-    \item \textbf{Variance Bound:} We treat each point as a Bernoulli trial (success if
-          \(\sqrt{x^2 + y^2}\le 1\)), using \(p=0.5\) for the worst-case variance
-          \(\sigma^2_{\max}=0.25\).
-    \item \textbf{Samples for Accuracy:}
-          \[
-              N \ge \frac{0.25}{\varepsilon^2}.
-          \]
-          For \(\varepsilon=10^{-5}\), \(N\approx 2.5\times10^9\); for
-          \(\varepsilon=10^{-10}\), \(N\approx2.5\times10^{19}\).
-    \item \textbf{Practical Limit:} Pseudorandom generators can produce duplicates or
-          correlated sequences, undermining gains from extremely large \(N\). Hence, we fix
-          \(\texttt{totalSamples}=4\times10^{10}\) in all experiments under Question~1.
+      \item \textbf{Variance Bound:} Each point can be viewed as a Bernoulli trial (success if
+            \(\sqrt{x^2 + y^2} \le 1\)), but the total number of successes follows a binomial
+            distribution with worst-case variance \(p(1-p)\) with \(p = 0.5\) yields
+            \(\sigma^2_{\max} = 0.25\).
+      \item \textbf{Samples for Accuracy:}
+            \[
+                  N \ge \frac{4}{\varepsilon^2}.
+            \]
+            For \(\varepsilon = 10^{-5}\), \(N \approx 4\times10^{10}\). For \(\varepsilon
+            = 10^{-10}\), \(N \approx4\times10^{20}\).
 \end{itemize}
 
-\subsection{Parallel Implementations: Common Approach}
-All parallel versions follow a similar pattern:
+\subsubsection{Practical Limit and Diminishing Returns}
+\paragraph{Statistical Nature of the Estimator.}
+When \(\pi\) is estimated by randomly sampling points in a unit square, the
+estimator \(\hat{\pi} = 4 \times (\text{points in circle}/N)\) is unbiased but
+has a variance that scales as \(1/N\). By the central limit theorem, its
+standard error decreases proportionally to \(1/\sqrt{N}\).
+
+\paragraph{Diminishing Returns on Accuracy.}
+Because the error decreases as \(1/\sqrt{N}\):
 \begin{itemize}
-    \item \textbf{Chunking:} The total sample size (\(4\times10^{10}\)) is divided into
-          smaller chunks. Each thread (or GPU thread) processes one or more chunks.
-    \item \textbf{Local Counters:} Each thread maintains a local count of points
-          satisfying \(\sqrt{x^2 + y^2}\le 1\). This avoids excessive synchronization.
-    \item \textbf{Unique Seeding:} Threads use distinct seeds to reduce correlation in
-          random number generation.
-    \item \textbf{Final Accumulation:} After processing, local counts are summed to
-          compute \(\pi = 4 \times (\texttt{totalInsideCount} / \texttt{totalSamples})\).
+      \item Doubling \(N\) only reduces the error by about \(1/\sqrt{2}\approx 29\%\).
+      \item Each additional decimal place of precision requires roughly 100 times more
+            samples.
 \end{itemize}
 
+\paragraph{Inherent Random Variance.}
+Random fluctuations remain even for large \(N\), diminishing only at the rate
+of \(1/\sqrt{N}\). Practical constraints on pseudorandom generation and the
+rapid growth in required samples justify fixing the total sample size at
+\(\texttt{4} \times 10^{10}\) for the experiments under Question~1.
+
+\subsection{Task Decomposition and Random Number Generation}
+\begin{itemize}
+      \item \textbf{Common Strategy:} The total sample size \((4 \times 10^{10})\) is divided
+            into smaller chunks; each thread (or GPU thread) processes one or more chunks.
+            Local counters are maintained to minimize synchronization.
+      \item \textbf{Random Numbers:}
+            \begin{itemize}
+                  \item \(\texttt{std::mt19937}\) (Mersenne Twister) is used with
+                        \(\texttt{std::uniform\_real\_distribution}\) over \([-1,1]\).
+                  \item Distinct seeds are assigned to each thread to reduce correlation.
+            \end{itemize}
+      \item \textbf{Data Types:}
+            \begin{itemize}
+                  \item \(\texttt{unsigned long long}\) is used for counting inside-circle samples.
+                  \item \(\texttt{long double}\) is used for storing and returning the final
+                        \(\pi\) value.
+            \end{itemize}
+      \item \textbf{Thread/Block Configuration:}
+            \begin{itemize}
+                  \item \textbf{CPU Threads:} Up to 12 threads are used on the CPU, as specified
+                        by a configuration file.
+                  \item \textbf{GPU Threads:} In CUDA, a one-dimensional grid is launched with
+                        \(\texttt{threadsPerBlock} = 1024\) and
+                        \[
+                              \texttt{blocks}
+                              = \frac{\texttt{threadCount} + \texttt{threadsPerBlock} - 1}{\texttt{threadsPerBlock}},
+                        \]
+                        where \(\texttt{threadCount} = 40000\).
+            \end{itemize}
+\end{itemize}
+
+\subsection{Parallel Implementations: Overview}
 \subsubsection{Pthreads-Based Implementation}
 \begin{itemize}
-    \item \textbf{Thread Creation:} \(\texttt{pthread\_create}\) is used to spawn a fixed
-          number of threads, each assigned a subset of chunks.
-    \item \textbf{Random Generation:} A custom \(\texttt{IRandom}\) object is built for
-          each thread, seeded with \(\texttt{std::random\_device}\) plus a unique offset.
-    \item \textbf{Local Counting:} Within each chunk, the thread checks if
-          \(x^2 + y^2 \le 1\) and increments a local counter accordingly.
-    \item \textbf{Global Summation:} \(\texttt{pthread\_join}\) is used to wait for all
-          threads; their counts are then added to compute the final estimate.
+      \item \textbf{Thread Creation:} \(\texttt{pthread\_create}\) spawns a fixed number of
+            threads, each assigned one or more chunks.
+      \item \textbf{Local Counting:} Within each chunk, the condition
+            \((x^2 + y^2) \le 1\) is checked. A local counter is incremented whenever a point
+            lies inside the circle.
+      \item \textbf{Global Summation:} \(\texttt{pthread\_join}\) is used to wait for all
+            threads; local counts are then summed to compute the final estimate of \(\pi\).
 \end{itemize}
 
 \subsubsection{OpenMP-Based Implementation}
 \begin{itemize}
-    \item \textbf{Parallel Loop:} A \(\texttt{\#pragma omp parallel for}\) distributes
-          chunks among threads automatically.
-    \item \textbf{Reduction:} A \(\texttt{reduction(+ : totalInsideCount)}\) clause
-          accumulates local counts into a global variable without explicit locking.
-    \item \textbf{Thread Seeding:} Each thread uses
-          \(\texttt{omp\_get\_thread\_num()}\) plus a random seed offset for uniqueness.
+      \item \textbf{Parallel Loop:} A \(\texttt{\#pragma omp parallel for}\) distributes
+            chunks among OpenMP threads.
+      \item \textbf{Reduction:} A \(\texttt{reduction(+ : totalInsideCount)}\) clause
+            accumulates local counters into a global variable.
+      \item \textbf{Thread Seeding:} Each thread is assigned a seed offset via
+            \(\texttt{omp\_get\_thread\_num()}\).
 \end{itemize}
 
 \subsubsection{CUDA-Based Implementation}
 \begin{itemize}
-    \item \textbf{Kernel Launch:} A GPU kernel (\(\texttt{MCKernel}\)) is launched with a
-          chosen block and thread configuration. Each GPU thread processes a portion of
-          the samples.
-    \item \textbf{curand:} The \(\texttt{curand\_init}\) function seeds a local state per
-          thread, and \(\texttt{curand\_uniform}\) generates \((x,y)\) in
-          \([-1,1]\times[-1,1]\).
-    \item \textbf{Atomic Accumulation:} Each thread's local count is added to a global
-          counter using \(\texttt{atomicAdd}\). The final count is copied back to the CPU.
+      \item \textbf{Kernel Launch:} A kernel (\(\texttt{MCKernel}\)) is invoked with the chosen
+            block and thread configuration. Each GPU thread processes a portion of the samples.
+      \item \textbf{curand\_init:} Each thread initializes a local PRNG state, generating points
+            in \([-1,1]\times[-1,1]\).
+      \item \textbf{Atomic Accumulation:} Each thread’s local count is added to a global counter
+            using \(\texttt{atomicAdd}\). The final count is copied back to the CPU.\@
+\end{itemize}
+
+\subsection{Hardware Specifications}
+\begin{table}[h]
+      \centering
+      \begin{tabular}{ll}
+            \toprule
+            \textbf{CPU Model}     & Intel (R) Core (TM) i7--9750H CPU @ 2.60GHz \\
+            \textbf{Cores/Threads} & 6 Cores / 12 Threads                        \\
+            \textbf{RAM}           & 16\,GiB DDR4                                \\
+            \midrule
+            \textbf{GPU Model}     & NVIDIA GeForce (CUDA Version 11.4)          \\
+            \textbf{GPU Memory}    & 3911\,MiB                                   \\
+            \bottomrule
+      \end{tabular}
+      \caption{Summary of CPU and GPU hardware used in the experiments.}\label{tab:hardware}
+\end{table}
+
+\subsection{Implementation Details}
+\begin{itemize}
+      \item \textbf{Time Measurement:} The total runtime is measured using
+            \(\texttt{std::chrono::high\_resolution\_clock}\). The start time is recorded
+            immediately before the estimation begins, and the end time is recorded after
+            all threads (or GPU kernels) have completed.
+      \item \textbf{Compilation:} A \(\texttt{CMakeLists.txt}\) file and a Makefile are used
+            to compile and run the code, though these details do not affect the methodology
+            directly.
 \end{itemize}
 
 \section{Part A\texorpdfstring{\@:}{:} Experimental Tasks and Results}
 
 \subsection{Task A.1: Evaluating \texorpdfstring{\(\pi\)}{pi} to Different Decimal Places}
-The assignment requires evaluating \(\pi\) to:
-\begin{itemize}
-    \item 2 decimal points
-    \item 10 decimal points
-    \item 15 decimal points
-    \item 20 decimal points
-\end{itemize}
-\subsubsection{Methodology}
-\begin{itemize}
-    \item \textbf{Stopping criterion}: For each run, we increased the number of trials until
-          the estimate of \(\pi\) matched the target decimal precision.
-    \item \textbf{Decimal precision check}: Compare the estimated \(\pi\) with the reference
-          \(\pi \approx 3.141592653589793\) and verify the required number of matching decimals.
-    \item \textbf{Implementation details}: Each approach (single-threaded, multi-threaded, GPU)
-          was used to see how quickly each could achieve the target precision.
-\end{itemize}
 
-\subsubsection{Observations}
-\begin{itemize}
-    \item \textbf{Precision vs. Trials}: Reaching higher precision (e.g., 15--20 decimals)
-          demanded a large increase in the number of trials.
-    \item \textbf{Performance Variation}: The GPU implementation reached higher decimal
-          precision faster for large trial counts, while multi-threaded CPU was an improvement
-          over single-threaded but still slower than the GPU approach at high scales.
-    \item \textbf{Diminishing Returns}: Once in the range of 15--20 decimals, each additional
-          digit required exponentially more samples.
-\end{itemize}
+\input{pthreads_precision_table.tex}
+\input{openmp_precision_table.tex}
+\input{cuda_precision_table.tex}
 
 \subsection{Task A.2: Reassessing Strategies for Specific Trial Counts}
-We also tested each implementation for trial counts in powers of two, for
-instance:
-\[
-    2^4, \quad 2^8, \quad 2^{12}, \quad 2^{16}, \quad 2^{20}, \quad 2^{24}.
-\]
-\subsubsection{Collected Data}
-\begin{itemize}
-    \item \textbf{Estimated \(\pi\)}: Recorded for each trial count and each implementation.
-    \item \textbf{Error}: \( \text{error} = \bigl|\pi_{\text{estimated}} - \pi_{\text{true}}\bigr| \).
-    \item \textbf{Execution Time}: Measured the total runtime (seconds) for each approach.
-\end{itemize}
-
-\subsubsection{Results Summary}
-A sample table or chart (not shown here) highlights:
-\begin{itemize}
-    \item \textbf{Accuracy Growth}: Error generally decreases as trials increase, aligning with
-          the law of large numbers.
-    \item \textbf{Speedup}: GPU showed the best speedup for large trial counts. Multi-threaded
-          CPU was intermediate, and single-threaded CPU was slowest.
-    \item \textbf{Parallel Overheads}: For very small trial counts (e.g., \(2^4, 2^8\)), the
-          parallel overhead sometimes outweighed the benefits, making the single-threaded
-          approach competitive in those small ranges.
-\end{itemize}
+\input{pthreads_2n_table.tex}
+\input{openmp_2n_table.tex}
+\input{cuda_2n_table.tex}
 
 \subsection{Task A.3: Profiling the Best-Performing Program}
 After running the experiments, the GPU-based Monte Carlo approach was
-identified as the best performer for large-scale sampling. We used basic
-profiling (e.g., \texttt{nvprof} or similar) to identify potential bottlenecks:
+identified as the best performer for large-scale sampling. Profiling was
+performed using Nsight Compute (\texttt{ncu}), and the following key
+observations were made:
+
+\paragraph{Warp Stall Sampling.}
+\begin{figure}[ht]
+      \centering
+      \includegraphics[width=0.7\textwidth]{images/stalls.png}
+      \caption{Warp Stall Sampling view}\label{fig:warp-stalls}
+\end{figure}
+Figure~\ref{fig:warp-stalls} shows that functions in \texttt{curand\_kernel.h}
+account for significant warp stalls (10\% each for two instances), with
+\texttt{CudaMCPiCalculator.cu} also registering around 8\%--9\% of stalls.
+These stalls are primarily related to random number generation and the
+\texttt{if (x * x + y * y <= 1.0f)} check within the kernel.
+
+\paragraph{Instruction-Level Analysis.}
+\begin{figure}[ht]
+      \centering
+      \includegraphics[width=0.9\textwidth]{images/warp-stalls.png}
+      \caption{Source and SASS Analysis}\label{fig:kernel-instructions}
+\end{figure}
+Figure~\ref{fig:kernel-instructions} indicates that the conditional check
+\texttt{if (x * x + y * y <= 1.0f)} causes a significant share of warp stalls.
+In a GPU’s SIMT (Single Instruction, Multiple Threads) architecture, threads
+are grouped into warps that execute the same instruction in lockstep. When a
+branching instruction (like an \texttt{if}-statement) occurs, some threads may
+take one path while others take another, leading to \emph{divergence}. Divergent
+warps must serialize the execution of each path, which stalls threads on the
+inactive path. This serialization can reduce overall throughput, especially
+when the conditional is evaluated many times per thread. Although the distance
+check is essential for the Monte Carlo approach, reducing divergence can mitigate
+these stalls.
+
+\paragraph{Pipe Utilization.}
+\begin{figure}[ht]
+      \centering
+      \includegraphics[width=0.7\textwidth]{images/pipe-utilization.png}
+      \caption{Pipe utilization}\label{fig:pipe-util}
+\end{figure}
+Figure~\ref{fig:pipe-util} presents the pipe utilization. The ALU is utilized
+most heavily, followed by the FMA (fused multiply-add) units. This is expected
+given the arithmetic nature of the distance check \((x^2 + y^2)\) and other
+basic floating-point operations.
+
+\paragraph{Memory Chart.}
+\begin{figure}[ht]
+      \centering
+      \includegraphics[width=0.8\textwidth]{images/memory-chart.png}
+      \caption{Memory chart}\label{fig:memory-chart}
+\end{figure}
+Figure~\ref{fig:memory-chart} shows the memory chart. Global memory requests
+are relatively small, since only a single atomic addition is performed per
+thread block (to accumulate the inside-circle count). Consequently, the memory
+subsystem does not appear to be a major bottleneck. L2 cache hit rates are high,
+and only minimal data is transferred between host and device, so bandwidth is
+not saturated.
+
+\paragraph{Potential Optimizations.}
 \begin{itemize}
-    \item \textbf{Random Number Generation}: Generating random numbers on the GPU can be a
-          significant overhead if not done efficiently.
-    \item \textbf{Global Memory Access}: Frequent global memory writes slow down the kernel.
-          Optimizing memory access patterns or using shared memory can improve performance.
-    \item \textbf{Kernel Launch Overheads}: For smaller trial counts, repeated kernel launches
-          do not pay off compared to CPU-based methods.
+      \item \textbf{Random Number Generation Bottleneck:} The \texttt{curand\_kernel.h}
+            calls introduce warp stalls. More efficient RNG strategies or caching random
+            values in shared memory could reduce this overhead.
+      \item \textbf{Conditional Check Overhead:} The \texttt{if ($x^2 + y^2 \le 1.0f$)}
+            line is repeatedly executed. While unavoidable, exploring warp-level
+            primitives or reducing divergence may help.
+      \item \textbf{Memory System:} Memory bandwidth is not saturated, so optimizing
+            global memory usage is less critical. However, a shared-memory reduction
+            might still reduce atomic overhead.
 \end{itemize}
 
 \subsection{Task A.4: Discussion of Findings and Limitations}
+
+\paragraph{Accuracy.}
+Monte Carlo methods are probabilistic; achieving precision beyond a few decimal
+places quickly becomes expensive due to the \(1/\sqrt{N}\) error scaling. Each
+additional digit of accuracy necessitates roughly 100 times more samples.
+
+\paragraph{Profiling Insights.}
+Profiling the GPU code revealed that:
 \begin{itemize}
-    \item \textbf{Accuracy}: Monte Carlo methods are probabilistic; achieving very high
-          precision (beyond 10--15 decimals) becomes increasingly expensive.
-    \item \textbf{Parallel Implementations}:
-          \begin{itemize}
-              \item Multi-threaded CPU and GPU solutions scale well with the number of trials.
-              \item However, synchronization and data transfer overheads can reduce speedups at
-                    smaller scales.
-          \end{itemize}
-    \item \textbf{Limitations}:
-          \begin{itemize}
-              \item Variance in results (Monte Carlo is random).
-              \item Hardware availability (GPU is not always available).
-              \item Threading libraries and GPU frameworks have learning curves and overheads.
-          \end{itemize}
+      \item \texttt{curand\_kernel.h} introduces significant warp stalls due to random
+            number generation.
+      \item Repeated distance checks \((x^2 + y^2 \le 1)\) also stall warps, though they
+            are unavoidable for this approach.
+      \item Memory usage is minimal, so bandwidth is not a bottleneck.
 \end{itemize}
 
-\section{Part B: Gregory-Leibniz Series Comparison}
+\paragraph{Limitations.}
+\begin{itemize}
+      \item \textbf{Randomness Quality:} The estimator depends on good pseudorandom generation.
+      \item \textbf{Complexity:} Threading libraries and CUDA kernels add development overhead.
+\end{itemize}
+
+\section{Part B: Gregory-Leibniz Series for \texorpdfstring{\(\pi\)}{pi}}
 The Gregory-Leibniz series for \(\pi\) is given by:
 \[
-    \pi = 4 \sum_{n=0}^{\infty} \frac{(-1)^n}{2n + 1}.
+      \pi = 4 \sum_{n=0}^{\infty} \frac{(-1)^n}{2n + 1}.
 \]
 \subsection{Implementation and Observations}
 \begin{itemize}
-    \item \textbf{Implementation}: A simple loop summing the terms up to a certain \(N\),
-          or a parallel approach using reduction.
-    \item \textbf{Convergence}: The series converges relatively slowly. More terms are needed
-          for high precision, but it provides a deterministic path to \(\pi\) (no random variance).
-    \item \textbf{Comparison to Monte Carlo}:
-          \begin{itemize}
-              \item For lower precision (2--5 decimals), both methods are comparable in speed on a
-                    CPU.
-              \item For high precision (10+ decimals), a naive Gregory-Leibniz summation might be
-                    slower unless carefully optimized.
-              \item Monte Carlo’s variance means you might not get an exact decimal match
-                    consistently without a very large sample size.
-          \end{itemize}
+      \item \textbf{Implementation}: A dynamic approach was used, where the kernel-based
+            summation accumulates terms until a specified decimal precision is reached.
+            This eliminates random variance but requires explicit tracking of convergence.
+      \item \textbf{Convergence}: The series converges relatively slowly compared to some
+            other infinite series for \(\pi\). However, it still tends to require fewer
+            terms for a given precision than a Monte Carlo approach needs samples,
+            especially as precision grows.
+      \item \textbf{Comparison to Monte Carlo}:
+            \begin{itemize}
+                  \item \textbf{Monte Carlo’s High Sample Requirements}: Achieving
+                        high-precision estimates with Monte Carlo generally demands an
+                        exponentially larger number of random samples, leading to slow
+                        convergence for many-decimal-place accuracy.
+                  \item \textbf{Parallelization Ease}: Monte Carlo is straightforward to
+                        parallelize (each sample is independent), whereas Gregory-Leibniz
+                        requires careful summation of partial results. Nonetheless, both can
+                        benefit from multi-threading or GPU kernels.
+                  \item \textbf{Deterministic vs. Stochastic}: Gregory-Leibniz produces
+                        deterministic results without random variance, whereas Monte Carlo
+                        is inherently probabilistic.
+            \end{itemize}
 \end{itemize}
 
-\section{Conclusions}
+\subsection{Experimental Results and Comparison}
+\begin{table}[H]
+      \centering
+      \caption{Gregory-Leibniz GPU Results (Dynamically Terminated)}\label{tab:gregory-leibniz-results}
+      \begin{tabular}{|l|l|l|} % @{}rlll@{}
+            \hline
+            \textbf{Precision} & \textbf{Pi Estimate} & \textbf{Time (s)} \\
+            \hline
+            5                  & 3.14159              & 1.765             \\
+            6                  & 3.141592             & 3.934             \\
+            7                  & 3.1415924            & 11.876            \\
+            8                  & 3.14159255           & 36.433            \\
+            9                  & 3.141592622          & 120.241           \\
+            10                 & 3.1415926436         & 394.454           \\
+            \hline
+      \end{tabular}
+\end{table}
+
+\paragraph{Time Comparison with Monte Carlo.}
 \begin{itemize}
-    \item \textbf{Monte Carlo for \(\pi\)}:
-          \begin{itemize}
-              \item Excellent scalability with parallel implementations.
-              \item Performance strongly depends on the total number of trials and overhead of
-                    thread or kernel management.
-          \end{itemize}
-    \item \textbf{Gregory-Leibniz Series}:
-          \begin{itemize}
-              \item Offers a straightforward, deterministic convergence pattern.
-              \item Requires optimization for large numbers of terms to remain competitive with
-                    parallel Monte Carlo.
-          \end{itemize}
-    \item \textbf{Best Performing Method}:
-          \begin{itemize}
-              \item For large trial counts, GPU-based Monte Carlo yields the fastest performance in
-                    our tests.
-              \item For moderate precision on a CPU without GPU resources, multi-threaded Monte
-                    Carlo or Gregory-Leibniz (with some optimizations) can be effective.
-          \end{itemize}
+      \item \textbf{Precision vs. Performance}: The Monte Carlo approach requires
+            a rapidly growing number of samples to reach higher decimal places, often
+            making it slower than Gregory-Leibniz for equivalent precision. By contrast,
+            the Gregory-Leibniz series, though still slow, can achieve a target precision
+            with fewer total operations than a naive Monte Carlo at very high decimal places.
+      \item \textbf{Parallel Scalability}: Monte Carlo is conceptually simpler to
+            parallelize (each sample is independent), but the overhead of generating
+            large numbers of samples can still be high. Gregory-Leibniz parallelization
+            involves summing partial results, yet each iteration is deterministic and
+            free of variance.
 \end{itemize}
 
-\section*{References}
-\begin{itemize}
-    \item E. C. Titchmarsh, \emph{The Theory of the Riemann Zeta-Function}, 2nd ed.
-          Oxford University Press, 1986.
-    \item \url{https://www.esc.tntech.edu/pdcinres/modules/plugged/pi_estimation/Pi%20Estimation%20Cpp.pdf}
-          % Add other references if needed
-\end{itemize}
-
-\appendix
-\section{Source Code}
-\label{sec:source-code}
-\subsection{CPU Single-Threaded Example}
-\begin{lstlisting}[language=C++]
-#include <iostream>
-#include <random>
-#include <cmath>
-
-int main() {
-    // Example: single-threaded Monte Carlo
-    // ...
-    return 0;
-}
-\end{lstlisting}
-
-\subsection{CPU Multi-Threaded Example}
-\begin{lstlisting}[language=C++]
-// ...
-// Example using std::thread or OpenMP
-// ...
-\end{lstlisting}
-
-\subsection{GPU (CUDA) Example}
-\begin{lstlisting}[language=C]
-// ...
-// Example CUDA kernel for Monte Carlo
-// ...
-\end{lstlisting}
+\section*{Conclusion}
+In summary, the Monte Carlo and Gregory-Leibniz methods each provide valid
+approaches to estimating \(\pi\). Monte Carlo is conceptually simple to parallelize
+but requires a rapidly growing number of samples for higher precision. The
+Gregory-Leibniz series converges deterministically, often requiring fewer total
+iterations at very high precision, though it still grows slowly and demands
+careful summation for parallel performance. Ultimately, the choice depends on
+available hardware, desired accuracy, and implementation complexity.
 
 \end{document}

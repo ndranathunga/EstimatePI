@@ -5,6 +5,8 @@
 #include <iostream>
 
 #include "Config.h"
+#include "gl/GLFactory.h"
+#include "gl/GLPiCalculator.h"
 #include "mc/MCFactory.h"
 #include "mc/MCPiCalculator.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
@@ -33,6 +35,7 @@ string getResultFilename() {
 
 int main(int argc, char* argv[]) {
     auto logger = spdlog::stdout_color_mt("console");
+    logger->set_level(spdlog::level::trace);
 
     string configFile = (argc > 1) ? argv[1] : "config/config.json";
     logger->info("Using config file: {}", configFile);
@@ -61,44 +64,66 @@ int main(int argc, char* argv[]) {
     }
 
     resultsFile << "Group,Experiment,Backend,ThreadCount,Precision,TotalSamples,"
-                   "ChunkSize,PiEstimate,TimeSeconds\n";
+                   "PiEstimate,TimeSeconds\n";
 
     for (const auto& group : groups) {
-        logger->info("Processing group: {}", group.groupName);
+        logger->trace("Processing group: {}", group.groupName);
         for (const auto& exp : group.experiments) {
+            Method      method  = group.method;
             BackendType backend = group.global.backend;
             int threadCount   = (exp.threadCount > 0) ? exp.threadCount : group.global.threadCount;
             int precision     = (exp.precision > 0) ? exp.precision : group.global.precision;
             RNGType  rngType  = group.global.rngType;
             DistType distType = group.global.distType;
 
-            unsigned long long totalSamples = calculateSampleSize(precision);
+            unsigned long long totalSamples = (exp.sampleCount > 0) ? exp.sampleCount
+                                              : (group.global.sampleCount > 0)
+                                                  ? group.global.sampleCount
+                                                  : calculateSampleSize(precision);
+
             totalSamples = static_cast<unsigned long long>(totalSamples * exp.totalSamplesFactor);
             unsigned long long chunkSize = (totalSamples / threadCount);
             chunkSize = static_cast<unsigned long long>(chunkSize * exp.chunkSizeFactor);
 
-            logger->info("Running experiment: {} (Group: {})", exp.experimentName, group.groupName);
-            logger->info(
-                "Backend: {}, Threads: {}, Precision: {}, TotalSamples: {}, ChunkSize: "
-                "{}",
-                (backend == BackendType::OpenMP)    ? "OpenMP"
-                : (backend == BackendType::Pthread) ? "Pthreads"
-                                                    : "CUDA",
-                threadCount,
-                precision,
-                totalSamples,
-                chunkSize);
+            logger->trace(
+                "Running experiment: {} (Group: {})", exp.experimentName, group.groupName);
+            logger->trace("Backend: {}, Threads: {}, Precision: {}, TotalSamples: {}",
+                          (backend == BackendType::OpenMP)    ? "OpenMP"
+                          : (backend == BackendType::Pthread) ? "Pthreads"
+                                                              : "CUDA",
+                          threadCount,
+                          precision,
+                          totalSamples);
 
-            IMCPiCalculator* calculator = createCalculator(backend);
+            double      timeSeconds;
+            long double piEstimate;
+            if (method == Method::MonteCarlo) {
+                IMCPiCalculator* calculator = createCalculator(backend);
 
-            auto        startTime = high_resolution_clock::now();
-            long double piEstimate =
-                calculator->estimatePi(totalSamples, threadCount, chunkSize, rngType, distType);
-            auto endTime = high_resolution_clock::now();
+                auto startTime = high_resolution_clock::now();
+                piEstimate =
+                    calculator->estimatePi(totalSamples, threadCount, chunkSize, rngType, distType);
+                auto endTime = high_resolution_clock::now();
 
-            auto   durationMs  = duration_cast<milliseconds>(endTime - startTime);
-            double timeSeconds = durationMs.count() / 1000.0;
-            delete calculator;
+                auto durationMs = duration_cast<milliseconds>(endTime - startTime);
+                timeSeconds     = durationMs.count() / 1000.0;
+
+                delete calculator;
+            } else if (method == Method::GregoryLeibniz ||
+                       method == Method::GregoryLeibnizDynamic) {
+                IGLPiCalculator* calculator = createGLCalculator();
+
+                // FIXME: there are so many buggy things which didn't handle regarding the
+                // configs. too bored to do it.
+                auto startTime = high_resolution_clock::now();
+                piEstimate     = calculator->estimatePiPrecision(precision);
+                auto endTime   = high_resolution_clock::now();
+
+                auto durationMs = duration_cast<milliseconds>(endTime - startTime);
+                timeSeconds     = durationMs.count() / 1000.0;
+
+                delete calculator;
+            }
 
             logger->info("Experiment '{0}' result: π = {2:.{1}f}, Time = {3:.3f} s",
                          exp.experimentName,
@@ -111,9 +136,8 @@ int main(int argc, char* argv[]) {
                             : (backend == BackendType::Pthread) ? "Pthreads"
                                                                 : "CUDA")
                         << "," << threadCount << "," << precision << "," << totalSamples << ","
-                        << chunkSize << "," << std::fixed << std::setprecision(precision)
-                        << piEstimate << "," << std::fixed << std::setprecision(3) << timeSeconds
-                        << "\n";
+                        << std::fixed << std::setprecision(precision) << piEstimate << ","
+                        << std::fixed << std::setprecision(3) << timeSeconds << "\n";
         }
     }
 

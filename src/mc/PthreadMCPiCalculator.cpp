@@ -51,7 +51,7 @@ long double PthreadMCPiCalculator::estimatePi(unsigned long long totalSamples, i
         totalInsideCount += taskData[i].insideCount;
     }
 
-    return 4.0 * totalInsideCount / totalSamples;
+    return (long double)4.0 * totalInsideCount / totalSamples;
 }
 
 IMCPiCalculator* createPthreadCalculator() {
